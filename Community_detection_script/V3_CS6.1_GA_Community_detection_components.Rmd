@@ -1,0 +1,195 @@
+---
+title: "Community detection to find similrar components connecting each other"
+author: "niki"
+date: "18 December 2017"
+output: html_document
+---
+
+## R Markdown
+Find the community structure / group node neighbours together.
+
+
+#[0]----------------SET STEERING PARAMETERS-----------------------------------------------#placeholders
+```{r}
+
+r_fpath = "H:/theis_work/SWC_chair_ml_related/Archi_data/03airport_version3//"
+r_f1name = "elements"
+r_f2name = "relations"
+
+
+```
+
+
+#[1]--------------IMPORT DATASET IN MEMORY FROM DIRECTORY-------------------------------
+```{r}
+#Upload csv into memory
+#Inputparameters:
+# - i.fpath: Directory where csv file available
+# - i.fname: File name to read/import
+
+
+read_data <- function(i.fpath, i.fname) { 
+  library(readr)
+  
+  #Bring csv file path and file name together
+  fpath <- paste(i.fpath, i.fname, ".csv", sep = "")
+  
+  #Read csv from path and the given file name
+  #Supress warnings because of data from IBM
+  df_csv <- suppressWarnings(read_csv(fpath, col_names = TRUE))
+  
+  return (df_csv)
+}
+#Store csv in dataframe
+elements <- suppressWarnings(read_data(r_fpath, r_f1name))
+relations <- suppressWarnings(read_data(r_fpath, r_f2name))
+
+#Retrives the dimension of an object (rows and columns)
+dim(elements)
+dim(relations)
+```
+
+#[2]--------------COMBINE THE DATA FROM MATCHING ELEMENTS AND RELATION DATAFRAME-------------------------------
+```{r}
+combined_data<- function(df){
+  
+  new_ele<-elements[match(relations$Source, elements$ID), 3, drop=F]
+  new_rel<-elements[match(relations$Target, elements$ID), 3, drop=F]
+  
+  df<-cbind(new_ele,new_rel)   #new dataframe
+  
+  #change column names
+  colnames(df)[1] <- "new_source"
+  colnames(df)[2] <- "new_target"
+  
+  #combine with the relation2 table
+  data<-cbind(relations, df)
+  
+  
+  data$Source<- NULL
+  data$Target<- NULL
+  
+  return(data)
+}
+data<- combined_data()
+dim(data)
+```
+
+#[2]--------------GENERATE GRAPH DATA FROM DATAFRAME-------------------------------
+
+```{r}
+#generate Igraph object from dataframe
+library(igraph)
+g1 <- graph_from_data_frame(data[, 5:6], directed = TRUE)
+g1
+```
+
+
+#[3]--------------FIND COMMUNITIES USING IGRAPH COMMUNITY ALGORITHMS-------------------------------
+
+
+```{r}
+#parameters
+#clus_btw: edge-betweenness community
+#clus_sgc: spinglass community
+#clus_wtc: walktrap community
+#clus_inf: infomap community
+#clus_evc: leading eigenvector community
+#clus_lpc: label propagation community
+
+
+#1) Edge betweenness cluster
+clus_btw<- cluster_edge_betweenness(g1, directed = TRUE)
+communities(clus_btw)
+modularity(clus_btw)
+
+
+#2) Spinglass cluster
+#seed value is imp
+set.seed(200)
+clus_sgc<- cluster_spinglass(g1)
+communities(clus_sgc)
+modularity(clus_sgc)
+#convert communities to data frame
+#com <- cbind(V(g1)$name,clus_sgc$membership)
+
+#3) Walktrap
+clus_wtc<- cluster_walktrap(g1)
+communities(clus_wtc)
+modularity(clus_wtc)
+
+#4)Infomap
+clus_inf<- cluster_infomap(g1)
+communities(clus_inf)
+modularity(clus_inf)
+
+#5)Leading eligen
+clus_evc<- cluster_leading_eigen(g1)
+communities(clus_evc)
+modularity(clus_evc)
+
+#6)Label propagation
+clus_lpc<- cluster_label_prop(g1)
+communities(clus_lpc)
+modularity(clus_lpc)
+```
+
+#[4]--------------RETURN ALGORITHM NAME FOR THE HIGHEST MODULARITY SCORE-------------------------------
+
+```{r}
+algorithms<- cbind(c(clus_btw$algorithm, clus_sgc$algorithm, clus_wtc$algorithm, clus_inf$algorithm, clus_evc$algorithm, clus_lpc$algorithm))
+algorithms<- as.data.frame(algorithms)
+
+mod_score<- cbind(c(modularity(clus_btw), modularity(clus_sgc), modularity(clus_wtc), modularity(clus_inf), modularity(clus_evc), modularity(clus_lpc)))
+mod_score<- as.data.frame(mod_score)
+
+final<- cbind(algorithms, mod_score)
+colnames(final) <- c("Algoritms", "Modularity score")
+
+str(final)
+#convert from factor to character
+final$Algoritms<- as.character(as.factor(final$Algoritms))
+
+score<- max(final$`Modularity score`)
+final[final$`Modularity score` == score, "Algoritms"]
+
+```
+
+
+#[5]----------RETURN TOP 2 ALGORITHMS GIVING HIGHEST MODULARITY SCORE-----------------------------------
+
+```{r}
+##arrange dataframe in ascending order of modularity score
+top2_score<- final[ order(-final[,2], final[,1]), ]
+top2_score[1:2,]
+
+```
+
+
+######system.time({
+    
+#clus_sgc<- cluster_spinglass(g1)
+#  })
+
+#[6]----------PLOT THE MODULARITY SCORE AGAINST ALGORITHMS-----------------------------------
+
+```{r}
+#Plot the values
+
+library(plotly)
+
+p <- plot_ly(
+    x = final$Algoritms,
+    y = final$`Modularity score`,
+    name = "SF Zoo",
+    type = "bar"
+)
+p
+```
+###Comparing communities from differnt algorithm i.e to find distance between 2 community structure
+
+#TODO
+#also rank the community detection algorithm based on execution time and modularity
+
+#convert communities to dataframe
+#com <- cbind(V(g1)$name,clus_sgc$membership)
