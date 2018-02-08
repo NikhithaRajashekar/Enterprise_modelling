@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ## R Markdown
-Find the community structure / group node neighbours together.
+Find the community structure / group node neighbours together
 
 
 #[0]----------------SET STEERING PARAMETERS-----------------------------------------------#placeholders
